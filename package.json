@@ -1,0 +1,10 @@
+{
+  "name": "loadout",
+  "private": true,
+  "type": "module",
+  "description": "See your stuff packed into a real-size 3D moving truck before you rent one.",
+  "scripts": {
+    "start": "node dev/serve.mjs",
+    "test": "node --test"
+  }
+}

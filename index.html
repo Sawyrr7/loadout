@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LoadOut · truck load planner</title>
+  <meta name="description" content="List what you're moving and see it packed into a 3D moving truck, step by step, before you rent one.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    } }
+  </script>
+  <style>
+    :root {
+      --paper: #f3ede3; --panel: #fbf8f2; --ink: #1d1b18; --muted: #6f675c; --line: #e3dacb;
+      --teal: #0f766e; --teal-soft: #d6ece8; --red: #b42318; --red-soft: #fbe3df; --kraft: #c49a6c;
+      --shadow: 0 10px 30px rgba(60, 45, 25, 0.12);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: Inter, system-ui, sans-serif; color: var(--ink); background: var(--paper);
+      display: grid; grid-template-columns: 360px 1fr; overflow: hidden;
+    }
+    button { font: inherit; color: inherit; cursor: pointer; }
+
+    aside {
+      background: var(--panel); border-right: 1px solid var(--line);
+      display: flex; flex-direction: column; min-height: 0;
+    }
+    .brand { padding: 22px 22px 14px; border-bottom: 1px solid var(--line); }
+    .brand h1 {
+      font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 30px;
+      letter-spacing: -0.03em; margin: 0; display: flex; align-items: center; gap: 10px;
+    }
+    .brand h1 .mark {
+      width: 30px; height: 30px; border-radius: 8px; background: var(--teal); display: grid; place-items: center;
+      box-shadow: inset 0 -6px 0 rgba(0,0,0,0.18);
+    }
+    .brand p { margin: 6px 0 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .starts { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 22px; border-bottom: 1px solid var(--line); }
+    .starts span { width: 100%; font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .chip {
+      border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500;
+    }
+    .chip:hover { border-color: var(--teal); color: var(--teal); }
+    .inventory { overflow-y: auto; flex: 1; padding: 6px 0 20px; }
+    details { border-bottom: 1px solid var(--line); }
+    summary {
+      list-style: none; padding: 14px 22px; display: flex; justify-content: space-between; align-items: center;
+      font-weight: 600; font-size: 14px; cursor: pointer;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary .count { font-size: 12px; color: var(--muted); font-weight: 500; }
+    summary .count.on { color: var(--teal); }
+    .row { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; padding: 7px 22px; }
+    .row .dot { width: 10px; height: 10px; border-radius: 3px; }
+    .row .name { font-size: 14px; }
+    .row .size { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+    .stepper { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+    .stepper button { width: 30px; height: 28px; border: 0; background: none; font-size: 16px; color: var(--muted); }
+    .stepper button:hover { color: var(--teal); }
+    .stepper output { min-width: 22px; text-align: center; font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; }
+    .stepper.zero output { color: #b9b0a3; font-weight: 500; }
+    .custom { padding: 12px 22px 18px; display: grid; gap: 8px; }
+    .custom .dims { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .custom input {
+      width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; background: #fff;
+    }
+    .custom button { border: 0; border-radius: 9px; padding: 9px; background: var(--ink); color: #fff; font-weight: 600; font-size: 13px; }
+    .hint { font-size: 12px; color: var(--muted); }
+
+    main { position: relative; min-width: 0; min-height: 0; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+    .trucks {
+      position: absolute; top: 18px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); overflow-x: auto;
+      display: flex; gap: 6px; padding: 6px; background: rgba(251, 248, 242, 0.92); backdrop-filter: blur(8px);
+      border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
+    }
+    .truck-btn {
+      border: 1px solid transparent; background: none; border-radius: 11px; padding: 8px 14px; text-align: left; min-width: 104px;
+      position: relative; flex: none;
+    }
+    .truck-btn b { display: block; font-family: 'Bricolage Grotesque', sans-serif; font-size: 17px; letter-spacing: -0.01em; }
+    .truck-btn small { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .truck-btn small.ok { color: var(--teal); font-weight: 600; }
+    .truck-btn small.no { color: var(--red); font-weight: 600; }
+    .truck-btn.active { background: #fff; border-color: var(--line); box-shadow: 0 2px 8px rgba(60,45,25,0.08); }
+    .truck-btn .pick {
+      position: absolute; top: -9px; right: 8px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      background: var(--teal); color: #fff; padding: 2px 7px; border-radius: 999px;
+    }
+
+    .verdict {
+      position: absolute; top: 96px; left: 22px; max-width: 330px; padding: 16px 18px; border-radius: 16px;
+      background: rgba(251, 248, 242, 0.94); border: 1px solid var(--line); box-shadow: var(--shadow); backdrop-filter: blur(8px);
+    }
+    .verdict h2 { margin: 0 0 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; letter-spacing: -0.02em; }
+    .verdict p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+    .verdict.bad h2 { color: var(--red); }
+    .meter { height: 8px; border-radius: 99px; background: var(--line); margin: 12px 0 8px; overflow: hidden; }
+    .meter i { display: block; height: 100%; background: var(--teal); border-radius: 99px; transition: width 0.4s; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+    .stats div { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+    .stats b { display: block; font-size: 18px; color: var(--ink); letter-spacing: -0.01em; text-transform: none; font-family: 'Bricolage Grotesque', sans-serif; }
+
+    .player {
+      position: absolute; left: 22px; right: 22px; bottom: 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px;
+      align-items: center; padding: 12px 16px; border-radius: 16px; background: rgba(29, 27, 24, 0.9); color: #f6f1e8;
+      box-shadow: var(--shadow); backdrop-filter: blur(8px);
+    }
+    .player .play {
+      width: 42px; height: 42px; border-radius: 50%; border: 0; background: #f6f1e8; color: var(--ink); display: grid; place-items: center;
+    }
+    .player .step { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player .step span { color: #bfb5a6; font-variant-numeric: tabular-nums; margin-right: 8px; }
+    .player input[type=range] { width: 100%; accent-color: #5eead4; margin: 6px 0 0; }
+    .player .reset { border: 1px solid rgba(255,255,255,0.2); background: none; border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+
+    .tooltip {
+      position: absolute; pointer-events: none; padding: 8px 11px; border-radius: 10px; background: var(--ink); color: #fff;
+      font-size: 13px; line-height: 1.35; transform: translate(14px, 14px); display: none; max-width: 260px;
+    }
+    .tooltip small { display: block; color: #cfc6b8; }
+    .legend { position: absolute; right: 22px; top: 100px; display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+    .legend span { display: flex; align-items: center; gap: 7px; justify-content: flex-end; }
+    .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+    @media (max-width: 1260px) { .legend { display: none; } }
+    @media (max-width: 820px) {
+      body { grid-template-columns: 1fr; grid-template-rows: 62vh auto; overflow: auto; }
+      main { order: -1; height: 62vh; }
+      aside { border-right: 0; }
+      .trucks { top: 10px; left: 10px; right: 10px; transform: none; overflow-x: auto; }
+      .truck-btn { min-width: 86px; padding: 7px 10px; }
+      .verdict { top: auto; bottom: 108px; left: 10px; right: 10px; max-width: none; padding: 12px 14px; }
+      .verdict .stats, .legend { display: none; }
+      .player { left: 10px; right: 10px; bottom: 10px; gap: 10px; padding: 10px 12px; }
+      .player .reset { display: none; }
+      .player .step { font-size: 13px; }
+      .verdict p, .verdict .meter { display: none; }
+      .verdict h2 { font-size: 17px; margin: 0; }
+      .verdict { bottom: 92px; }
+    }
+  </style>
+</head>
+<body>
+  <aside>
+    <div class="brand">
+      <h1><span class="mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg></span>LoadOut</h1>
+      <p>List what you're moving. See it packed into a real-size truck, piece by piece, before you rent one.</p>
+    </div>
+    <div class="starts">
+      <span>Start from</span>
+      <div id="homes" style="display:contents"></div>
+      <button class="chip" data-clear>Clear</button>
+    </div>
+    <div class="inventory" id="inventory"></div>
+  </aside>
+
+  <main id="stage">
+    <canvas id="canvas" aria-label="3D view of the packed moving truck"></canvas>
+    <div class="trucks" id="trucks" role="tablist" aria-label="Truck size"></div>
+    <section class="verdict" id="verdict" aria-live="polite"></section>
+    <div class="legend" id="legend"></div>
+    <div class="player">
+      <button class="play" id="play" aria-label="Play loading order"></button>
+      <div>
+        <div class="step" id="stepText"></div>
+        <input type="range" id="scrub" min="0" value="0" aria-label="Loading step">
+      </div>
+      <button class="reset" id="resetView">Reset view</button>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
