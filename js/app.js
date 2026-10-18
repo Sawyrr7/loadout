@@ -274,6 +274,9 @@ function renderLegend() {
     .map(([name, color]) => `<span>${name}<i style="background:${color}"></i></span>`).join('');
 }
 
+// Handle for scripted demos and debugging from the console.
+window.loadout = { scene, state };
+
 load();
 renderHomes();
 renderInventory();

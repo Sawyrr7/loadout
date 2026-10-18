@@ -282,17 +282,21 @@ export class TruckScene {
     this.showUpTo(visible, false);
   }
 
-  /** Shows the first `count` steps. With `animate`, the newest one rolls in off the ramp. */
+  /**
+   * Shows the first `count` steps. With `animate`, the newest one rolls in off the ramp;
+   * pieces still in flight from earlier steps keep flying, so fast stepping looks like a stream.
+   */
   showUpTo(count, animate = true) {
     const prev = this.visible;
     this.visible = Math.max(0, Math.min(count, this.meshes.length));
+    const stepping = animate && this.visible === prev + 1;
+    if (!stepping) this.animations = [];
+    const flying = new Set(this.animations.map((a) => a.mesh));
     this.meshes.forEach((m, i) => {
       m.visible = i < this.visible;
-      m.position.copy(m.userData.home);
-      m.scale.setScalar(1);
+      if (!flying.has(m)) m.position.copy(m.userData.home);
     });
-    this.animations = [];
-    if (animate && this.visible === prev + 1) {
+    if (stepping) {
       const mesh = this.meshes[this.visible - 1];
       const end = mesh.userData.home.clone();
       const start = new THREE.Vector3(this.truck.deck.l + 70, end.y + 26, end.z);
